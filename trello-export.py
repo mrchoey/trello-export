@@ -18,13 +18,11 @@ requirements:
     both of which can be obtained from https://trello.com/app-key
 """
 
-#FIXME use a config file for the following and credentials
 HOME_DIR = os.path.expanduser("~")
-CONFIG_FILE = HOME_DIR + '/.trello'
+CONFIG_PATH = HOME_DIR + '/.trello'
 TIMESTAMP = datetime.datetime.now().strftime("%Y-%m-%d-%H_%M_%S")
 OUTPUT_PATH = HOME_DIR + "/trello_export/%s/"%(TIMESTAMP)
 
-my_trello = trello.TrelloApi('UPDATE_WITH_APP_KEY','UPDATE_WITH_API_TOKEN')
 
 # mkdir -p functionality
 # http://stackoverflow.com/questions/600268/mkdir-p-functionality-in-python
@@ -38,7 +36,7 @@ def mkdir_p(path):
 
 
 def get_list_id(board_id,list_name):
-    board_lists = my_trello.boards.get_list(board_id)
+    board_lists = MY_TRELLO.boards.get_list(board_id)
     for board_list in board_lists:
         if board_list["name"] == list_name:
             list_id = board_list["id"]
@@ -48,21 +46,21 @@ def get_list_id(board_id,list_name):
 
 
 def get_cards(list_id):
-    cards = my_trello.lists.get_card(list_id)
+    cards = MY_TRELLO.lists.get_card(list_id)
     return cards 
 
 
 def fetch_card_attachments(card_id):
-    attachments = my_trello.cards.get_attachment(card_id)
+    attachments = MY_TRELLO.cards.get_attachment(card_id)
     return attachments
 
 def fetch_card_labels(card_id):
-    labels = my_trello.cards.get_labels(card_id)
+    labels = MY_TRELLO.cards.get_labels(card_id)
     return labels
 
 def fetch_card_activity(card_id):
     activity_lines = []
-    actions = my_trello.cards.get_action(card_id)
+    actions = MY_TRELLO.cards.get_action(card_id)
     for action in actions:
         if action["type"] == "commentCard":
             comment_line = "\n###Comment - %s\n%s \n\n`%s`" %(action["memberCreator"]["username"],action["data"]["text"],action["date"])
@@ -75,7 +73,7 @@ def fetch_card_activity(card_id):
         
 def fetch_checklists(card_id): 
     checklists = {}
-    checklists_response = my_trello.cards.get_checklist(card_id)
+    checklists_response = MY_TRELLO.cards.get_checklist(card_id)
     for checklist in checklists_response:
         checklist_lines = []
         checklist_name = checklist["name"]
@@ -144,6 +142,7 @@ def write_output(card_name,card_rendering):
 
 
 def parse_options():
+    global CONFIG_PATH
     opt_parser = optparse.OptionParser(usage="usage: %prog -b board_id -l list_name")
     opt_parser.add_option('-b', '--board_id',
                       dest='board_id',
@@ -153,8 +152,15 @@ def parse_options():
                       dest='list_name',
                       help='trello list is the name of the Trello list in quotes from the the board you want to export',
                       )
+    opt_parser.add_option('-c', '--config_path',
+                      dest='config_path',
+                      help='path to the config files with api credentials, default is %s'%(CONFIG_PATH),
+                      )
     options, remainder = opt_parser.parse_args()
       
+    if options.config_path:
+        CONFIG_PATH = options.config_path
+
     if not options.board_id:   
         opt_parser.print_help()
         opt_parser.error('-b for providing a Trello board id is required')
@@ -167,8 +173,16 @@ def parse_options():
 
 
 def main():
-    mkdir_p(OUTPUT_PATH)
+    global MY_TRELLO
     board_id,list_name = parse_options()
+
+    parser = SafeConfigParser()
+    parser.read(CONFIG_PATH)
+    API_KEY = parser.get('trello','API_KEY')
+    API_TOKEN = parser.get('trello','API_TOKEN')
+    MY_TRELLO = trello.TrelloApi(API_KEY,API_TOKEN)
+
+    mkdir_p(OUTPUT_PATH)
     list_id = get_list_id(board_id,list_name)
     cards = get_cards(list_id)
     render_cards(cards)
