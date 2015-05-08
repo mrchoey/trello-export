@@ -98,6 +98,40 @@ def render_cards(cards):
         card_rendering = render_card(card)
         write_output(card["name"],card_rendering)
 
+def count_board_cards(board_id):
+    board_cards = MY_TRELLO.boards.get_card(board_id)
+    return len(board_cards)
+
+def create_summary(board_id,cards):
+    summary_path = OUTPUT_PATH + "summary.html"
+    summary_output = open(summary_path, 'a')
+    board_card_count = count_board_cards(board_id)
+    done_count = len(cards)
+    unplanned_count = 0
+    security_count = 0
+    demo_count = 0
+    done_list = []
+    for card in cards:
+        card_output_path = card["name"].replace(" ","_").replace("/","--") + ".md"
+        done_card_link = "<a href=\"%s\">%s</a><br>"%(card_output_path,card["name"])
+        done_list.append(str(done_card_link))
+        labels = card["labels"]
+        for label in labels:
+            if "Unplanned" in label["name"]:
+                unplanned_count +=1
+            if "Security" in label["name"]:
+                security_count +=1
+            if "Demo" in label["name"]:
+                demo_count +=1
+    summary_output.write("<b>SUMMARY</b><br>")
+    summary_output.write("Cards on board: %s<br>"%(board_card_count))
+    summary_output.write("Cards completed: %s<br>"%(done_count))
+    summary_output.write("Unplanned cards: %s<br>"%(unplanned_count))
+    summary_output.write("Security cards: %s<br>"%(security_count))
+    summary_output.write("Demo cards: %s<br>"%(demo_count))
+    summary_output.write("<br><b>COMPLETED CARDS</b><br>")
+    for done_card in sorted(done_list,key=str.lower):
+        summary_output.write(done_card)
 
 def render_card(card):
     rendering = "#%s\n" %(card["name"])
@@ -138,7 +172,7 @@ def render_card(card):
 def write_output(card_name,card_rendering):
     card_output_path = OUTPUT_PATH + card_name.replace(" ","_").replace("/","--") + ".md"
     card_output = open(card_output_path, 'a') 
-    card_output.write(card_rendering)
+    card_output.write(card_rendering.encode('UTF-8','backslashreplace'))
 
 
 def parse_options():
@@ -185,6 +219,7 @@ def main():
     mkdir_p(OUTPUT_PATH)
     list_id = get_list_id(board_id,list_name)
     cards = get_cards(list_id)
+    create_summary(board_id,cards)
     render_cards(cards)
     print "Export complete. Exported cards can be found at\n %s"%(OUTPUT_PATH)
     # for example -b "2QVYJFqS" -l "Done (and verified)"
